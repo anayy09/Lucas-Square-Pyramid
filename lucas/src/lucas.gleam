@@ -59,24 +59,42 @@ pub fn lucas(n: Int, k: Int) {
   lucas_loop(1, sum_k_squares(k), n, k)
 }
 
-type WorkerMsg {
-  Work(range_start: Int, range_end: Int, current_sum: Int)
-  Shutdown
-}
-
 type BossMsg {
   ResultFound(Int)
   WorkerDone
 }
 
-pub fn worker_do_range(start: Int, finish: Int, cur_sum: Int, k: Int) {
+type WorkerMsg {
+  Work(
+    range_start: Int,
+    range_end: Int,
+    current_sum: Int,
+    boss: process.Subject(BossMsg),
+  )
+  Shutdown
+}
+
+// worker_do_range: iterate a worker's assigned starts and notify boss for results
+fn worker_do_range(
+  start: Int,
+  finish: Int,
+  cur_sum: Int,
+  k: Int,
+  boss: process.Subject(BossMsg),
+) {
   case start <= finish {
     True -> {
       case perfect_square(cur_sum) {
-        True -> io.println(int.to_string(start))
+        True -> actor.send(boss, ResultFound(start))
         False -> Nil
       }
-      worker_do_range(start + 1, finish, cur_sum - sq(start) + sq(start + k), k)
+      worker_do_range(
+        start + 1,
+        finish,
+        cur_sum - sq(start) + sq(start + k),
+        k,
+        boss,
+      )
     }
     False -> Nil
   }
@@ -84,9 +102,9 @@ pub fn worker_do_range(start: Int, finish: Int, cur_sum: Int, k: Int) {
 
 fn worker_loop(state: Int, msg: WorkerMsg) -> actor.Next(Int, WorkerMsg) {
   case msg {
-    Work(start, finish, sum) -> {
+    Work(start, finish, sum, boss) -> {
       // `state` holds k (window size) for worker
-      worker_do_range(start, finish, sum, state)
+      worker_do_range(start, finish, sum, state, boss)
       actor.continue(state)
     }
 
@@ -133,6 +151,7 @@ fn assign_ranges(
   k: Int,
   work_unit: Int,
   start_idx: Int,
+  boss: process.Subject(BossMsg),
 ) {
   case start_idx <= n {
     False -> Nil
@@ -145,11 +164,18 @@ fn assign_ranges(
             sum_k_squares(start_idx + k - 1) - sum_k_squares(start_idx - 1)
           case first {
             Ok(actor.Started(pid: _, data: subject)) ->
-              actor.send(subject, Work(start_idx, e, sum_for_s))
+              actor.send(subject, Work(start_idx, e, sum_for_s, boss))
             _ -> Nil
           }
           // rotate: send next ranges using rest ++ [first]
-          assign_ranges(list.append(rest, [first]), n, k, work_unit, e + 1)
+          assign_ranges(
+            list.append(rest, [first]),
+            n,
+            k,
+            work_unit,
+            e + 1,
+            boss,
+          )
         }
       }
     }
@@ -165,8 +191,8 @@ pub fn lucas_actor(n: Int, k: Int, workers: Int, work_unit: Int) {
   // Start workers
   let worker_subjects = start_n_workers(workers, k)
 
-  // Assign ranges
-  assign_ranges(worker_subjects, n, k, work_unit, 1)
+  // Assign ranges (provide boss subject so workers can report back)
+  assign_ranges(worker_subjects, n, k, work_unit, 1, boss)
 
   // tell workers to shutdown
   let _ =
@@ -186,6 +212,15 @@ pub fn input_nk() {
   case argv.load().arguments {
     [n, k] ->
       lucas(result.unwrap(int.parse(n), 0), result.unwrap(int.parse(k), 0))
+
+    // Actor mode: lukas N K WORKERS WORK_UNIT
+    [n, k, workers, work_unit] -> {
+      let n_v = result.unwrap(int.parse(n), 0)
+      let k_v = result.unwrap(int.parse(k), 0)
+      let w_v = result.unwrap(int.parse(workers), 1)
+      let u_v = result.unwrap(int.parse(work_unit), 1)
+      lucas_actor(n_v, k_v, w_v, u_v)
+    }
     _ -> io.println("usage: ./lucas n k")
   }
 }
