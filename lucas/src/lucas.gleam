@@ -62,6 +62,7 @@ pub fn lucas(n: Int, k: Int) {
 type BossMsg {
   ResultFound(Int)
   WorkerDone
+  SetRemaining(Int)
 }
 
 type WorkerMsg {
@@ -144,6 +145,27 @@ fn start_n_workers(
   }
 }
 
+// Count Ok entries in the start_n_workers result list
+fn count_started_workers(
+  list: List(
+    Result(actor.Started(process.Subject(WorkerMsg)), actor.StartError),
+  ),
+  acc: Int,
+) -> Int {
+  case list {
+    [] -> acc
+    [first, ..rest] ->
+      case first {
+        Ok(actor.Started(pid: _, data: _)) ->
+          count_started_workers(rest, acc + 1)
+        _ -> {
+          io.println("warning: worker start failed, skipping worker")
+          count_started_workers(rest, acc)
+        }
+      }
+  }
+}
+
 fn boss_loop(
   state: #(List(Int), Int),
   msg: BossMsg,
@@ -152,17 +174,25 @@ fn boss_loop(
     #(results, remaining) ->
       case msg {
         ResultFound(v) -> actor.continue(#([v, ..results], remaining))
-
         WorkerDone -> {
           let rem = remaining - 1
           case rem == 0 {
             True -> {
-              let sorted = list.sort(results, int.compare)
-              list.each(sorted, fn(x) { io.println(int.to_string(x)) })
+              case results {
+                [] -> io.println("no solutions found")
+                _ -> {
+                  let sorted = list.sort(results, int.compare)
+                  list.each(sorted, fn(x) { io.println(int.to_string(x)) })
+                }
+              }
               actor.stop()
             }
             False -> actor.continue(#(results, rem))
           }
+        }
+
+        SetRemaining(n) -> {
+          actor.continue(#(results, n))
         }
       }
   }
@@ -209,13 +239,19 @@ fn assign_ranges(
 }
 
 pub fn lucas_actor(n: Int, k: Int, workers: Int, work_unit: Int) {
-  // Start boss
+  // Start boss with 0 remaining; we'll set remaining after starting workers
   let assert Ok(boss_started) =
-    actor.new(#([], workers)) |> actor.on_message(boss_loop) |> actor.start
+    actor.new(#([], 0)) |> actor.on_message(boss_loop) |> actor.start
   let boss = boss_started.data
 
   // Start workers
   let worker_subjects = start_n_workers(workers, k, boss)
+
+  // Count successful worker starts and log failures
+  let started_workers = count_started_workers(worker_subjects, 0)
+
+  // Tell boss how many workers to expect
+  actor.send(boss, SetRemaining(started_workers))
 
   // Assign ranges (provide boss subject so workers can report back)
   assign_ranges(worker_subjects, n, k, work_unit, 1, boss)
@@ -230,8 +266,7 @@ pub fn lucas_actor(n: Int, k: Int, workers: Int, work_unit: Int) {
       }
     })
 
-  // stop boss
-  actor.send(boss, WorkerDone)
+  // (no extra WorkerDone sent here; workers will send WorkerDone on shutdown)
 
   Nil
 }
