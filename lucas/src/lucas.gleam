@@ -100,23 +100,35 @@ fn worker_do_range(
   }
 }
 
-fn worker_loop(state: Int, msg: WorkerMsg) -> actor.Next(Int, WorkerMsg) {
-  case msg {
-    Work(start, finish, sum, boss) -> {
-      // `state` holds k (window size) for worker
-      worker_do_range(start, finish, sum, state, boss)
-      actor.continue(state)
-    }
+fn worker_loop(
+  state: #(Int, process.Subject(BossMsg)),
+  msg: WorkerMsg,
+) -> actor.Next(#(Int, process.Subject(BossMsg)), WorkerMsg) {
+  case state {
+    #(k_val, boss_subject) ->
+      case msg {
+        Work(start, finish, sum, _boss) -> {
+          // `state` holds k (window size) and boss subject for worker
+          worker_do_range(start, finish, sum, k_val, boss_subject)
+          actor.continue(state)
+        }
 
-    Shutdown -> actor.stop()
+        Shutdown -> {
+          // notify boss we're done
+          actor.send(boss_subject, WorkerDone)
+          actor.stop()
+        }
+      }
   }
 }
 
 // Start a worker actor returning its subject (private)
 fn start_worker(
   k: Int,
+  boss: process.Subject(BossMsg),
 ) -> Result(actor.Started(process.Subject(WorkerMsg)), actor.StartError) {
-  actor.new(k)
+  // initial worker state is a tuple of (k, boss_subject)
+  actor.new(#(k, boss))
   |> actor.on_message(worker_loop)
   |> actor.start
 }
@@ -124,21 +136,35 @@ fn start_worker(
 fn start_n_workers(
   count: Int,
   k: Int,
+  boss: process.Subject(BossMsg),
 ) -> List(Result(actor.Started(process.Subject(WorkerMsg)), actor.StartError)) {
   case count <= 0 {
     True -> []
-    False -> [start_worker(k), ..start_n_workers(count - 1, k)]
+    False -> [start_worker(k, boss), ..start_n_workers(count - 1, k, boss)]
   }
 }
 
-fn boss_loop(state: Nil, msg: BossMsg) -> actor.Next(Nil, BossMsg) {
-  case msg {
-    ResultFound(v) -> {
-      // print result
-      io.println(int.to_string(v))
-      actor.continue(state)
-    }
-    WorkerDone -> actor.continue(state)
+fn boss_loop(
+  state: #(List(Int), Int),
+  msg: BossMsg,
+) -> actor.Next(#(List(Int), Int), BossMsg) {
+  case state {
+    #(results, remaining) ->
+      case msg {
+        ResultFound(v) -> actor.continue(#([v, ..results], remaining))
+
+        WorkerDone -> {
+          let rem = remaining - 1
+          case rem == 0 {
+            True -> {
+              let sorted = list.sort(results, int.compare)
+              list.each(sorted, fn(x) { io.println(int.to_string(x)) })
+              actor.stop()
+            }
+            False -> actor.continue(#(results, rem))
+          }
+        }
+      }
   }
 }
 
@@ -185,11 +211,11 @@ fn assign_ranges(
 pub fn lucas_actor(n: Int, k: Int, workers: Int, work_unit: Int) {
   // Start boss
   let assert Ok(boss_started) =
-    actor.new(Nil) |> actor.on_message(boss_loop) |> actor.start
+    actor.new(#([], workers)) |> actor.on_message(boss_loop) |> actor.start
   let boss = boss_started.data
 
   // Start workers
-  let worker_subjects = start_n_workers(workers, k)
+  let worker_subjects = start_n_workers(workers, k, boss)
 
   // Assign ranges (provide boss subject so workers can report back)
   assign_ranges(worker_subjects, n, k, work_unit, 1, boss)
