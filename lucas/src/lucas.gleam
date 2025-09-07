@@ -232,6 +232,91 @@ pub fn lucas_actor(n: Int, k: Int, workers: Int, work_unit: Int) {
 
   // stop boss
   actor.send(boss, WorkerDone)
+
+  Nil
+}
+
+// Sequential collector that emulates worker partitioning and returns results as a list
+pub fn lucas_actor_collect(
+  n: Int,
+  k: Int,
+  _workers: Int,
+  work_unit: Int,
+) -> List(Int) {
+  let results = collect_ranges_impl(1, n, k, work_unit, [])
+  // return sorted ascending
+  list.sort(results, int.compare)
+}
+
+// Sequential collector: return sequential lucas results as a list
+pub fn lucas_collect(n: Int, k: Int) -> List(Int) {
+  list.sort(collect_lucas_impl(1, n, sum_k_squares(k), k, []), int.compare)
+}
+
+// Top-level helper used by lucas_collect
+fn collect_lucas_impl(
+  i: Int,
+  n: Int,
+  cur_sum: Int,
+  k: Int,
+  acc: List(Int),
+) -> List(Int) {
+  case i <= n {
+    False -> acc
+    True -> {
+      let acc2 = case perfect_square(cur_sum) {
+        True -> [i, ..acc]
+        False -> acc
+      }
+      collect_lucas_impl(i + 1, n, cur_sum - sq(i) + sq(i + k), k, acc2)
+    }
+  }
+}
+
+// Helper: collect results for a block [s..e]
+fn collect_block(
+  s: Int,
+  e: Int,
+  cur_sum: Int,
+  k: Int,
+  acc: List(Int),
+) -> List(Int) {
+  case s <= e {
+    False -> acc
+    True -> {
+      let acc2 = case perfect_square(cur_sum) {
+        True -> [s, ..acc]
+        False -> acc
+      }
+      collect_block(s + 1, e, cur_sum - sq(s) + sq(s + k), k, acc2)
+    }
+  }
+}
+
+// Helper: iterate ranges sequentially like the actor assigner
+fn collect_ranges_impl(
+  start_idx: Int,
+  n: Int,
+  k: Int,
+  work_unit: Int,
+  acc: List(Int),
+) -> List(Int) {
+  case start_idx <= n {
+    False -> acc
+    True -> {
+      let e = int.min(n, start_idx + work_unit - 1)
+      let sum_for_s =
+        sum_k_squares(start_idx + k - 1) - sum_k_squares(start_idx - 1)
+      let block_results = collect_block(start_idx, e, sum_for_s, k, [])
+      collect_ranges_impl(
+        e + 1,
+        n,
+        k,
+        work_unit,
+        list.append(acc, block_results),
+      )
+    }
+  }
 }
 
 pub fn input_nk() {
