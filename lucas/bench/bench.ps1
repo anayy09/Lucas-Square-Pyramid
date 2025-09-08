@@ -38,7 +38,7 @@ foreach ($u in $Units) {
 
   $elapsed = $sw.Elapsed.TotalSeconds
   $ratio = 0
-  if ($elapsed -gt 0) { $ratio = [math]::Round(($cpuTime / $elapsed), 2) }
+  if ($elapsed -gt 0) { $ratio = [math]::Round(($cpuTime / $elapsed), 4) }
 
   $results += [PSCustomObject]@{
     WorkUnit = $u

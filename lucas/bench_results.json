@@ -1,37 +1,37 @@
 ﻿[
     {
         "WorkUnit":  1,
-        "ElapsedSeconds":  3.1226,
-        "CPUSeconds":  0.0156,
-        "CPUtoReal":  0.01,
+        "ElapsedSeconds":  2.0919,
+        "CPUSeconds":  0.0312,
+        "CPUtoReal":  0.0149,
         "OutputFile":  "bench_out_1000000_4_8_1.txt"
     },
     {
         "WorkUnit":  10,
-        "ElapsedSeconds":  2.0431,
+        "ElapsedSeconds":  2.0696,
         "CPUSeconds":  0.0312,
-        "CPUtoReal":  0.02,
+        "CPUtoReal":  0.0151,
         "OutputFile":  "bench_out_1000000_4_8_10.txt"
     },
     {
         "WorkUnit":  100,
-        "ElapsedSeconds":  1.0286,
-        "CPUSeconds":  0.0312,
-        "CPUtoReal":  0.03,
+        "ElapsedSeconds":  2.0642,
+        "CPUSeconds":  0.0156,
+        "CPUtoReal":  0.0076,
         "OutputFile":  "bench_out_1000000_4_8_100.txt"
     },
     {
         "WorkUnit":  1000,
-        "ElapsedSeconds":  1.0639,
-        "CPUSeconds":  0.0469,
-        "CPUtoReal":  0.04,
+        "ElapsedSeconds":  2.0643,
+        "CPUSeconds":  0.0312,
+        "CPUtoReal":  0.0151,
         "OutputFile":  "bench_out_1000000_4_8_1000.txt"
     },
     {
         "WorkUnit":  10000,
-        "ElapsedSeconds":  2.0456,
-        "CPUSeconds":  0.0469,
-        "CPUtoReal":  0.02,
+        "ElapsedSeconds":  2.0511,
+        "CPUSeconds":  0.0156,
+        "CPUtoReal":  0.0076,
         "OutputFile":  "bench_out_1000000_4_8_10000.txt"
     }
 ]

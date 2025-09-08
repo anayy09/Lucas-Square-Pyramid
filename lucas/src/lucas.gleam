@@ -5,6 +5,7 @@ import gleam/io
 import gleam/list
 import gleam/otp/actor
 import gleam/result
+import tempo
 
 pub fn sqrt_loop(low l: Int, high h: Int, target t: Int, result r) -> Int {
   //echo r
@@ -167,13 +168,13 @@ fn count_started_workers(
 }
 
 fn boss_loop(
-  state: #(List(Int), Int),
+  state: #(List(Int), Int, tempo.Instant),
   msg: BossMsg,
-) -> actor.Next(#(List(Int), Int), BossMsg) {
+) -> actor.Next(#(List(Int), Int, tempo.Instant), BossMsg) {
   case state {
-    #(results, remaining) ->
+    #(results, remaining, start) ->
       case msg {
-        ResultFound(v) -> actor.continue(#([v, ..results], remaining))
+        ResultFound(v) -> actor.continue(#([v, ..results], remaining, start))
         WorkerDone -> {
           let rem = remaining - 1
           case rem == 0 {
@@ -185,14 +186,15 @@ fn boss_loop(
                   list.each(sorted, fn(x) { io.println(int.to_string(x)) })
                 }
               }
+              io.println("REAL TIME: " <> tempo.instant_since_formatted(start))
               actor.stop()
             }
-            False -> actor.continue(#(results, rem))
+            False -> actor.continue(#(results, rem, start))
           }
         }
 
         SetRemaining(n) -> {
-          actor.continue(#(results, n))
+          actor.continue(#(results, n, start))
         }
       }
   }
@@ -241,7 +243,9 @@ fn assign_ranges(
 pub fn lucas_actor(n: Int, k: Int, workers: Int, work_unit: Int) {
   // Start boss with 0 remaining; we'll set remaining after starting workers
   let assert Ok(boss_started) =
-    actor.new(#([], 0)) |> actor.on_message(boss_loop) |> actor.start
+    actor.new(#([], 0, tempo.now()))
+    |> actor.on_message(boss_loop)
+    |> actor.start
   let boss = boss_started.data
 
   // Start workers
@@ -356,8 +360,13 @@ fn collect_ranges_impl(
 
 pub fn input_nk() {
   case argv.load().arguments {
-    [n, k] ->
-      lucas(result.unwrap(int.parse(n), 0), result.unwrap(int.parse(k), 0))
+    [n, k] -> {
+      let n_v = result.unwrap(int.parse(n), 0)
+      let k_v = result.unwrap(int.parse(k), 0)
+      let start = tempo.now()
+      lucas(n_v, k_v)
+      io.println("REAL TIME: " <> tempo.instant_since_formatted(start))
+    }
 
     // Actor mode: lukas N K WORKERS WORK_UNIT
     [n, k, workers, work_unit] -> {
@@ -365,8 +374,11 @@ pub fn input_nk() {
       let k_v = result.unwrap(int.parse(k), 0)
       let w_v = result.unwrap(int.parse(workers), 1)
       let u_v = result.unwrap(int.parse(work_unit), 1)
+      let start = tempo.now()
       lucas_actor(n_v, k_v, w_v, u_v)
+      io.println("REAL TIME: " <> tempo.instant_since_formatted(start))
     }
+
     _ -> io.println("usage: ./lucas n k")
   }
 }
