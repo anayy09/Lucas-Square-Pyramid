@@ -374,9 +374,7 @@ pub fn input_nk() {
       let k_v = result.unwrap(int.parse(k), 0)
       let w_v = result.unwrap(int.parse(workers), 1)
       let u_v = result.unwrap(int.parse(work_unit), 1)
-      let start = tempo.now()
       lucas_actor(n_v, k_v, w_v, u_v)
-      io.println("REAL TIME: " <> tempo.instant_since_formatted(start))
     }
 
     _ -> io.println("usage: ./lucas n k")
