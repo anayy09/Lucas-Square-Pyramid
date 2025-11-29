@@ -59,8 +59,8 @@ The project uses a **Boss-Worker** actor pattern:
 
 ```sh
 # Clone the repository
-git clone <repository-url>
-cd DOSP-Project-1
+git clone https://github.com/anayy09/Lucas-Square-Pyramid.git
+cd Lucas-Square-Pyramid
 
 # Install dependencies
 gleam deps download
